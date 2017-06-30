@@ -1,0 +1,6 @@
+slack_api_key: xoxp-123-456-789
+date_delta: 300
+debug: True
+
+users:
+    - viyh
