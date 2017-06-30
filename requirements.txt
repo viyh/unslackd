@@ -1,0 +1,7 @@
+beautifulsoup4==4.6.0
+bs4==0.0.1
+PyYAML==3.12
+requests==2.18.1
+slackclient==1.0.6
+urllib3==1.21.1
+websocket-client==0.44.0
