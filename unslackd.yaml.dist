@@ -1,7 +1,7 @@
 debug: True
 
 slack_api_key: xoxp-123-456-789
-slack_channel: \#test
+slack_channel: '#test'
 
 date_delta: 300
 

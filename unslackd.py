@@ -9,7 +9,7 @@ def read_config():
         cfg = yaml.load(ymlfile)
     return cfg
 
-def get_html(user):
+def get_user_activity_html(user):
     url = 'https://untappd.com/user/' + user
     raw = requests.get(url).content.decode()
     return raw
@@ -39,7 +39,7 @@ def parse_item(item):
     checkin_dict['checkin_url'] = item.select('a.timezoner')[0]['href']
     return checkin_dict
 
-def parse_html(html):
+def get_checkins(html):
     soup = BeautifulSoup(html, 'html.parser')
     checkins = []
     for item in soup.findAll('div', {'class': 'item'}):
@@ -49,6 +49,12 @@ def parse_html(html):
         if len(checkins) >= 5:
             break
     return checkins
+
+def post_user_checkins(checkins):
+    for checkin in checkins:
+        post_slack_message(get_slack_text(checkin))
+        if cfg['debug']:
+            print(get_slack_text(checkin))
 
 def get_slack_text(checkin):
     message = ':untappd: <https://untappd.com' + checkin['user_url'] + '/checkin/' + checkin['checkin_id'] + \
@@ -61,17 +67,18 @@ def get_slack_text(checkin):
         message = message + ' [Rated: *' + checkin['rating'] + '*]'
     return message
 
+def post_slack_message(message):
+    sc.api_call(
+        'chat.postMessage',
+        channel=cfg['slack_channel'],
+        text=message
+    )
+
 def main():
     for user in cfg['users']:
-        html = get_html(user)
-        for checkin in parse_html(html):
-            sc.api_call(
-                'chat.postMessage',
-                channel=cfg['slack_channel'],
-                text=get_slack_text(checkin)
-            )
-            if cfg['debug']:
-                print(get_slack_text(checkin))
+        user_activity_html = get_user_activity_html(user)
+        checkins = get_checkins(user_activity_html)
+        post_user_checkins(checkins)
 
 if __name__ == "__main__":
     cfg = read_config()
