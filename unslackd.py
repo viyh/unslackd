@@ -5,7 +5,7 @@ import requests
 import yaml
 
 def read_config():
-    with open('untappd.yaml', 'r') as ymlfile:
+    with open('unslackd.yaml', 'r') as ymlfile:
         cfg = yaml.load(ymlfile)
     return cfg
 
