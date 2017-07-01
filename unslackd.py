@@ -22,7 +22,7 @@ def parse_item(item):
     try:
         checkin_dict['comment'] = checkin.select('p.comment-text')[0].text.strip()
     except:
-        checkin_dict['comment'] = None
+        pass
     checkin_dict['user_friendly_name'] = beer[0].text
     checkin_dict['user_url'] = beer[0].get('href')
     checkin_dict['user_friendly_name'] = beer[0].text
@@ -61,17 +61,31 @@ def post_user_checkins(checkins):
             print(get_slack_text(checkin))
 
 def get_slack_text(checkin):
-    message = ':untappd: <https://untappd.com' + checkin['user_url'] + '/checkin/' + checkin['checkin_id'] + \
-        '|New Check-in> from <https://untappd.com' + checkin['user_url'] + '|' + checkin['user_friendly_name'] + \
-        '>: <https://untappd.com' + checkin['beer_url'] + '|' + checkin['beer_name'] + \
-        '> by <https://untappd.com' + checkin['brewery_url'] + '|' + checkin['brewery_name'] + '>'
-    if 'location_name' in checkin:
-        message = message + ' at <https://untappd.com' + checkin['location_url'] + '|' + checkin['location_name'] + '>'
+    message = []
+    message.append(':untappd: <https://untappd.com{}/checkin/{}|New Check-in>'.format(
+        checkin['user_url'],
+        checkin['checkin_id']
+    ))
+    message.append(' from <https://untappd.com{}|{}>'.format(
+        checkin['user_url'],
+        checkin['user_friendly_name']
+    ))
+    message.append(': <https://untappd.com{}|{}> by <https://untappd.com{}|{}>'.format(
+        checkin['beer_url'],
+        checkin['beer_name'],
+        checkin['brewery_url'],
+        checkin['brewery_name']
+    ))
+    if 'location_name' in checkin and 'location_url' in checkin:
+        message.append(' at <https://untappd.com{}|{}>'.format(
+            checkin['location_url'],
+            checkin['location_name']
+        ))
     if 'rating' in checkin:
-        message = message + ' [Rated: *' + checkin['rating'] + '*]'
+        message.append(' [Rated: *{}*]'.format(checkin['rating']))
     if 'comment' in checkin:
-        message = message + ' - "' + checkin['comment'] + '"'
-    return message
+        message.append(' - "{}"'.format(checkin['comment']))
+    return ''.join(message)
 
 def post_slack_message(message):
     sc.api_call(
