@@ -19,6 +19,10 @@ def parse_item(item):
     checkin_dict['checkin_id'] = item.get('data-checkin-id')
     checkin = item.select('div.checkin')[0]
     beer = checkin.select('div.top')[0].select('p.text')[0].select('a')
+    try:
+        checkin_dict['comment'] = checkin.select('p.comment-text')[0].text.strip()
+    except:
+        checkin_dict['comment'] = None
     checkin_dict['user_friendly_name'] = beer[0].text
     checkin_dict['user_url'] = beer[0].get('href')
     checkin_dict['user_friendly_name'] = beer[0].text
@@ -65,6 +69,8 @@ def get_slack_text(checkin):
         message = message + ' at <https://untappd.com' + checkin['location_url'] + '|' + checkin['location_name'] + '>'
     if 'rating' in checkin:
         message = message + ' [Rated: *' + checkin['rating'] + '*]'
+    if 'comment' in checkin:
+        message = message + ' - "' + checkin['comment'] + '"'
     return message
 
 def post_slack_message(message):
