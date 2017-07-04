@@ -11,36 +11,69 @@ def read_config():
 
 def get_user_activity_html(user):
     url = 'https://untappd.com/user/' + user
-    raw = requests.get(url).content.decode()
-    return raw
+    return requests.get(url).content.decode()
 
-def parse_item(item):
-    checkin_dict = {}
-    checkin_dict['checkin_id'] = item.get('data-checkin-id')
+def get_checkin_id(item):
+    return item.get('data-checkin-id')
+
+def get_checkin_rating(item):
+    try:
+        rating = item.select('span.rating')[0]['class'][-1].lstrip('r')
+        return rating[:1] + '.' + rating[1:]
+    except:
+        return '---'
+
+def get_checkin_badges(item):
+    badge_list = []
+    try:
+        badges = item.select('span.badge')
+        for badge in badges:
+            badge_list.append(
+                {
+                    'badge_name': badge.select('img.lazy')[0].get('alt'),
+                    'badge_url': badge.select('img.lazy')[0].get('data-original')
+                }
+            )
+    except:
+        pass
+    return badge_list
+
+def get_checkin_beer(item):
+    beer_dict = {}
     checkin = item.select('div.checkin')[0]
     beer = checkin.select('div.top')[0].select('p.text')[0].select('a')
     try:
-        checkin_dict['comment'] = checkin.select('p.comment-text')[0].text.strip()
+        beer_dict['comment'] = checkin.select('p.comment-text')[0].text.strip()
     except:
         pass
-    checkin_dict['user_friendly_name'] = beer[0].text
-    checkin_dict['user_url'] = beer[0].get('href')
-    checkin_dict['user_friendly_name'] = beer[0].text
-    checkin_dict['user_url'] = beer[0].get('href')
-    checkin_dict['beer_name'] = beer[1].text
-    checkin_dict['beer_url'] = beer[1].get('href')
-    checkin_dict['brewery_name'] = beer[2].text
-    checkin_dict['brewery_url'] = beer[2].get('href')
+    beer_dict['user_friendly_name'] = beer[0].text
+    beer_dict['user_url'] = beer[0].get('href')
+    beer_dict['user_friendly_name'] = beer[0].text
+    beer_dict['user_url'] = beer[0].get('href')
+    beer_dict['beer_name'] = beer[1].text
+    beer_dict['beer_url'] = beer[1].get('href')
+    beer_dict['brewery_name'] = beer[2].text
+    beer_dict['brewery_url'] = beer[2].get('href')
     if len(beer) >= 4:
-        checkin_dict['location_name'] = beer[3].text
-        checkin_dict['location_url'] = beer[3].get('href')
-    try:
-        rating = item.select('span.rating')[0]['class'][-1].lstrip('r')
-        checkin_dict['rating'] = rating[:1] + '.' + rating[1:]
-    except:
-        checkin_dict['rating'] = '---'
-    checkin_dict['date'] = int(datetime.strptime(item.select('a.timezoner')[0].text, '%a, %d %b %Y %H:%M:%S %z').timestamp())
-    checkin_dict['checkin_url'] = item.select('a.timezoner')[0]['href']
+        beer_dict['location_name'] = beer[3].text
+        beer_dict['location_url'] = beer[3].get('href')
+    return beer_dict
+
+def get_checkin_date(item):
+    return int(datetime.strptime(item.select('a.timezoner')[0].text, '%a, %d %b %Y %H:%M:%S %z').timestamp())
+
+def get_checkin_url(item):
+    return item.select('a.timezoner')[0]['href']
+
+def parse_item(item):
+    checkin_dict = {}
+    checkin_dict['checkin_id'] = get_checkin_id(item)
+    checkin_dict = {**checkin_dict, **get_checkin_beer(item)}
+    checkin_dict['rating'] = get_checkin_rating(item)
+    checkin_dict['badges'] = get_checkin_badges(item)
+    checkin_dict['date'] = get_checkin_date(item)
+    checkin_dict['checkin_url'] = get_checkin_url(item)
+    checkin_dict['badges'] = get_checkin_badges(item)
     return checkin_dict
 
 def get_checkins(html):
@@ -56,9 +89,10 @@ def get_checkins(html):
 
 def post_user_checkins(checkins):
     for checkin in checkins:
-        post_slack_message(get_slack_text(checkin))
+        post_slack_message(get_slack_text(checkin), get_slack_attachments(checkin))
         if cfg['debug']:
-            print(get_slack_text(checkin))
+            print(get_slack_text(checkin), get_slack_attachments(checkin))
+
 
 def get_slack_text(checkin):
     message = []
@@ -76,22 +110,36 @@ def get_slack_text(checkin):
         checkin['brewery_url'],
         checkin['brewery_name']
     ))
-    if 'location_name' in checkin and 'location_url' in checkin:
+    if checkin.get('location_name') and checkin.get('location_url'):
         message.append(' at <https://untappd.com{}|{}>'.format(
             checkin['location_url'],
             checkin['location_name']
         ))
-    if 'rating' in checkin:
+    if checkin.get('rating'):
         message.append(' [Rated: *{}*]'.format(checkin['rating']))
-    if 'comment' in checkin:
+    if checkin.get('comment'):
         message.append(' - "{}"'.format(checkin['comment']))
     return ''.join(message)
 
-def post_slack_message(message):
+def get_slack_attachments(checkin):
+    attachments = []
+    if checkin.get('badges'):
+        for badge in checkin['badges']:
+            attachments.append(
+                {
+                    'title': badge['badge_name'],
+                    'image_url': badge['badge_url']
+
+                }
+            )
+    return attachments
+
+def post_slack_message(message, attachments):
     sc.api_call(
         'chat.postMessage',
         channel=cfg['slack_channel'],
-        text=message
+        text=message,
+        attachments=attachments
     )
 
 def main():
