@@ -7,13 +7,14 @@ import os
 
 def read_config():
     cfg = {}
-    # with open('unslackd.yaml', 'r') as ymlfile:
-    #     cfg = yaml.load(ymlfile)
-    cfg['users'] = os.getenv('users', []).split(',')
+    cfg['users'] = os.getenv('users', '').split(',')
     cfg['slack_api_key'] = os.getenv('slack_api_key')
     cfg['slack_channel'] = os.getenv('slack_channel')
     cfg['date_delta'] = int(os.getenv('date_delta', 299))
     cfg['debug'] = os.getenv('debug', False)
+    if os.path.exists('unslackd.yaml'):
+        with open('unslackd.yaml', 'r') as ymlfile:
+            cfg = yaml.safe_load(ymlfile)
     return cfg
 
 def get_user_activity_html(user):
@@ -22,8 +23,8 @@ def get_user_activity_html(user):
         'User-Agent': 'Unslackd (Can I please have an Untappd API key?) 0.2'
     }
     response = requests.get(url, headers=headers).content.decode()
-    # if cfg['debug']:
-    #     print('Debug [get_user_activity_html - {}]'.format(url))
+    if cfg['debug']:
+        print('DEBUG [get_user_activity_html - {}]'.format(url))
     return response
 
 def get_checkin_id(item):
@@ -110,8 +111,7 @@ def post_user_checkins(checkins):
     for checkin in checkins:
         post_slack_message(get_slack_text(checkin), get_slack_attachments(checkin))
         if cfg['debug']:
-            print(get_slack_text(checkin), get_slack_attachments(checkin))
-
+            print('DEBUG [post_user_checkins]\n\t{}'.format(yaml.dump(checkin, default_flow_style=False).replace('\n', '\n\t')))
 
 def get_slack_text(checkin):
     message = []
@@ -165,7 +165,7 @@ def lambda_handler(event, context):
     main()
 
 def main():
-    print("Debug: " + str(cfg))
+    print("DEBUG [config]\n{}".format(yaml.dump(cfg)))
     for user in cfg['users']:
         user_activity_html = get_user_activity_html(user)
         checkins = get_checkins(user_activity_html)
