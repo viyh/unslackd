@@ -79,8 +79,6 @@ def get_checkin_url(item):
     return item.select('a.timezoner')[0]['href']
 
 def parse_item(item):
-    if cfg['debug']:
-        print(f"parse_item: ITEM = {item}")
     checkin_dict = {}
     checkin_dict['checkin_id'] = get_checkin_id(item)
     checkin_dict = {**checkin_dict, **get_checkin_beer(item)}
@@ -89,18 +87,15 @@ def parse_item(item):
     checkin_dict['date'] = get_checkin_date(item)
     checkin_dict['checkin_url'] = get_checkin_url(item)
     checkin_dict['badges'] = get_checkin_badges(item)
-    if cfg['debug']:
-        print(f"parse_item: {checkin_dict}")
     return checkin_dict
 
 def get_checkins(html):
     soup = BeautifulSoup(html, 'html.parser')
     checkins = []
     now = int(datetime.now().timestamp())
-    for item in soup.findAll('div', {'class': 'item'}):
+    stream = soup.find('div', {'id': 'main-stream'})
+    for item in stream.findAll('div', {'class': 'item'}):
         try:
-            if cfg['debug']:
-                print(f'Item: {item}')
             checkin_dict = parse_item(item)
         except Exception as e:
             print("Could not parse item: [%s] - Item: \"%s\"" % (e, item))
