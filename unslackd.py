@@ -3,22 +3,35 @@ from slackclient import SlackClient
 from bs4 import BeautifulSoup
 import requests
 import yaml
+import os
 
 def read_config():
-    with open('unslackd.yaml', 'r') as ymlfile:
-        cfg = yaml.load(ymlfile)
+    cfg = {}
+    # with open('unslackd.yaml', 'r') as ymlfile:
+    #     cfg = yaml.load(ymlfile)
+    cfg['users'] = os.getenv('users', []).split(',')
+    cfg['slack_api_key'] = os.getenv('slack_api_key')
+    cfg['slack_channel'] = os.getenv('slack_channel')
+    cfg['date_delta'] = int(os.getenv('date_delta', 299))
+    cfg['debug'] = os.getenv('debug', False)
     return cfg
 
 def get_user_activity_html(user):
     url = 'https://untappd.com/user/' + user
-    return requests.get(url).content.decode()
+    headers = {
+        'User-Agent': 'Unslackd (Can I please have an Untappd API key?) 0.2'
+    }
+    response = requests.get(url, headers=headers).content.decode()
+    # if cfg['debug']:
+    #     print('Debug [get_user_activity_html - {}]'.format(url))
+    return response
 
 def get_checkin_id(item):
     return item.get('data-checkin-id')
 
 def get_checkin_rating(item):
     try:
-        rating = item.select('span.rating')[0]['class'][-1].lstrip('r')
+        rating = item.select('span.rating')[0]['class'][-1].lstrip('rating-')
         return rating[:1] + '.' + rating[1:]
     except:
         return '---'
@@ -66,6 +79,8 @@ def get_checkin_url(item):
     return item.select('a.timezoner')[0]['href']
 
 def parse_item(item):
+    if cfg['debug']:
+        print(f"parse_item: ITEM = {item}")
     checkin_dict = {}
     checkin_dict['checkin_id'] = get_checkin_id(item)
     checkin_dict = {**checkin_dict, **get_checkin_beer(item)}
@@ -74,13 +89,22 @@ def parse_item(item):
     checkin_dict['date'] = get_checkin_date(item)
     checkin_dict['checkin_url'] = get_checkin_url(item)
     checkin_dict['badges'] = get_checkin_badges(item)
+    if cfg['debug']:
+        print(f"parse_item: {checkin_dict}")
     return checkin_dict
 
 def get_checkins(html):
     soup = BeautifulSoup(html, 'html.parser')
     checkins = []
+    now = int(datetime.now().timestamp())
     for item in soup.findAll('div', {'class': 'item'}):
-        checkin_dict = parse_item(item)
+        try:
+            if cfg['debug']:
+                print(f'Item: {item}')
+            checkin_dict = parse_item(item)
+        except Exception as e:
+            print("Could not parse item: [%s] - Item: \"%s\"" % (e, item))
+            continue
         if 'date' in checkin_dict and now - checkin_dict['date'] < cfg['date_delta']:
             checkins.append(checkin_dict)
         if len(checkins) >= 5:
@@ -142,14 +166,22 @@ def post_slack_message(message, attachments):
         attachments=attachments
     )
 
+def lambda_handler(event, context):
+    main()
+
 def main():
+    print("Debug: " + str(cfg))
     for user in cfg['users']:
         user_activity_html = get_user_activity_html(user)
         checkins = get_checkins(user_activity_html)
         post_user_checkins(checkins)
 
+####
+####
+####
+
+cfg = read_config()
+sc = SlackClient(cfg['slack_api_key'])
+
 if __name__ == "__main__":
-    cfg = read_config()
-    sc = SlackClient(cfg['slack_api_key'])
-    now = int(datetime.now().timestamp())
     main()
